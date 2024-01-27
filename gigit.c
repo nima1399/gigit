@@ -8,6 +8,7 @@
 #define INVALID printf("Invalid command\n");
 
 int init();
+int gigitExists(char *path);
 
 int main(int argc, char *argv[])
 {
@@ -20,17 +21,28 @@ int main(int argc, char *argv[])
     {
         if (init())
             return 1;
-        return 0;
     }
+    printf("hello world\n");
+    return 0;
 }
 
 int init()
 {
-    DIR *dir = opendir(".gigit");
+    DIR *dir;
+    if ((dir = opendir(".")) == NULL)
+    {
+        printf("Error: not a directory\n");
+        return 1;
+    }
     char *path = dir->dd_name;
     if (gigitExists(path))
+    {
+        printf("Already a gigit repository\n");
         return 1;
-    mkdir(".gigit", 0777);
+    }
+    mkdir(".gigit");
+    closedir(dir);
+    return 0;
 }
 
 int gigitExists(char *path)
@@ -44,11 +56,12 @@ int gigitExists(char *path)
             return 1;
         }
     }
+    closedir(dir);
     if (!strcmp(path, "C:"))
     {
         return 0;
     }
-    char *str = strrchr(path, '/');
+    char *str = strrchr(path, '\\');
     str[0] = '\0';
-    gigitExists(path);
+    return gigitExists(path);
 }
