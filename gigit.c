@@ -49,9 +49,25 @@ int init()
         return 1;
     }
     mkdir(".gigit");
-    char *linkPath = "C:\\Users\\Admin\\OneDrive\\Desktop\\SUT\\gigit\\gigit\\config\\projects path.txt";
+    strcat(path, "\\.gigit");
+    char *linkPath = "C:\\Users\\Admin\\OneDrive\\Desktop\\SUT\\gigit\\gigit\\config\\projectsPath.txt";
     FILE *projectLink = fopen(linkPath, "a");
     fprintf(projectLink, "%s\n", path);
+    fclose(projectLink);
+    char *currentPath = "C:\\Users\\Admin\\OneDrive\\Desktop\\SUT\\gigit\\gigit\\config\\currentProjectPath.txt";
+    FILE *currentProjectLink = fopen(currentPath, "w");
+    fprintf(currentProjectLink, "%s\n", path);
+    fclose(currentProjectLink);
+    char *configPath = ".gigit\\config";
+    mkdir(configPath);
+    char *usernamePath = ".gigit\\config\\username.txt";
+    FILE *usernameFile = fopen(usernamePath, "w");
+    fprintf(usernameFile, "%s\n", "username");
+    fclose(usernameFile);
+    char *useremailPath = ".gigit\\config\\useremail.txt";
+    FILE *useremailFile = fopen(useremailPath, "w");
+    fprintf(useremailFile, "%s\n", "useremail");
+    fclose(useremailFile);
     closedir(dir);
     return 0;
 }
@@ -137,6 +153,11 @@ int config(int argc, char *argv[])
         return 1;
     }
     if (global)
+    {
+        char *linkPath = "C:\\Users\\Admin\\OneDrive\\Desktop\\SUT\\gigit\\gigit\\config\\projectsPath.txt";
+        
+    }
+    else
     {
         // complete here
     }
