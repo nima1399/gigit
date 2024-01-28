@@ -10,8 +10,9 @@
 
 int config(int argc, char *argv[]);
 int init();
-int gigitExists(char *path);
+char *gigitExists(char *path);
 int alias(int argc, char *argv[]);
+int aliasCheck(int argc, char *argv[]);
 
 int main(int argc, char *argv[])
 {
@@ -25,10 +26,15 @@ int main(int argc, char *argv[])
         if (init())
             return 1;
     }
-    if (strcmp(argv[1], "config") == 0)
+    else if (strcmp(argv[1], "config") == 0)
     {
         printf("config\n");
         if (config(argc, argv))
+            return 1;
+    }
+    else 
+    {
+        if (aliasCheck(argc, argv))
             return 1;
     }
     printf("hello world\n");
@@ -44,7 +50,7 @@ int init()
         return 1;
     }
     char *path = dir->dd_name;
-    if (gigitExists(path))
+    if (gigitExists(path) != NULL)
     {
         printf("Already a gigit repository\n");
         closedir(dir);
@@ -77,15 +83,16 @@ int init()
     fprintf(useremailFile, "%s\n", "useremail");
     fclose(useremailFile);
     closedir(dir);
+    printf("Initialized empty gigit repository in %s\n", path);
     return 0;
 }
 
-int gigitExists(char *path)
+char *gigitExists(char *path)
 {
     DIR *dir = opendir(path);
     if (!dir)
     {
-        return 0;
+        return NULL;
     }
 
     struct dirent *entry;
@@ -94,7 +101,7 @@ int gigitExists(char *path)
         if (strcmp(entry->d_name, ".gigit") == 0)
         {
             closedir(dir);
-            return 1;
+            return strcat(path, "\\.gigit");
         }
     }
 
@@ -102,7 +109,7 @@ int gigitExists(char *path)
 
     if (strcmp(path, ".") == 0)
     {
-        return 0;
+        return NULL;
     }
 
     char *str = strrchr(path, '\\');
@@ -112,7 +119,7 @@ int gigitExists(char *path)
         return gigitExists(path);
     }
 
-    return 0;
+    return NULL;
 }
 
 int config(int argc, char *argv[])
@@ -221,6 +228,7 @@ int config(int argc, char *argv[])
             }
         }
     }
+    printf("configed succesfuly\n");
 }
 
 int alias(int argc, char *argv[])
@@ -238,48 +246,61 @@ int alias(int argc, char *argv[])
         global = true;
         user = 3;
     }
-    if (strcmp(argv[user], "alias.") == 0 && argc == user + 2)
+    if (strncmp(argv[user], "alias.", 6) == 0 && argc == user + 2)
     {
-        char *linkPath = "C:\\Users\\Admin\\OneDrive\\Desktop\\SUT\\gigit\\gigit\\config\\alias.txt";
-        FILE *projectsLink = fopen(linkPath, "r");
-        char *path = NULL;
-        char *read;
-        while ((read = fgets(path, 200, projectsLink)) != NULL)
+        char *aliasPath;
+        if (!global)
         {
-            path[strlen(path) - 1] = '\0';
-            char *aliasPath = strcat(path, "\\.gigit\\config\\alias.txt");
-            FILE *aliasFile = fopen(aliasPath, "a");
-            fprintf(aliasFile, "%s %s\n", argv[user + 1], argv[user + 2]);
-            fclose(aliasFile);
+            DIR *dir = opendir(".");
+            if (!dir)
+            {
+                printf("Error: not a directory\n");
+                return 1;
+            }
+            char *path = dir->dd_name;
+            if (gigitExists(path) == NULL)
+            {
+                printf("Not a gigit repository\n");
+                closedir(dir);
+                return 1;
+            }
+            aliasPath = strcat(path, "\\config\\alias.txt");
         }
+        else
+        {
+            aliasPath = "C:\\Users\\Admin\\OneDrive\\Desktop\\SUT\\gigit\\gigit\\config\\alias.txt";
+        }
+        FILE *aliasLink = fopen(aliasPath, "a");
+        char *aliasName = argv[user] + 6;
+        fprintf(aliasLink, "%s %s\n", aliasName, argv[user + 1]);
+        printf("alias added succesfuly\n");
     }
-    else
+}
+
+int aliasCheck(int argc, char *argv[])
+{
+    // complete this function to execute alias commands
+    if (argc < 2)
     {
         printf("Invalid command\n");
         return 1;
     }
-    if (global)
+    bool aliasFound = false;
+    char *aliasPath = "C:\\Users\\Admin\\OneDrive\\Desktop\\SUT\\gigit\\gigit\\config\\alias.txt";
+    FILE *aliasLink = fopen(aliasPath, "r");
+    char *path = NULL;
+    char *read;
+    while ((read = fgets(path, 200, aliasLink)) != NULL)
     {
-        char *linkPath = "C:\\Users\\Admin\\OneDrive\\Desktop\\SUT\\gigit\\gigit\\config\\projectsPath.txt";
-        FILE *projectsLink = fopen(linkPath, "r");
-        char *path = NULL;
-        char *read;
-        while ((read = fgets(path, 200, projectsLink)) != NULL)
+        path[strlen(path) - 1] = '\0';
+        if (!strcmp(argv[1], path))
         {
-            path[strlen(path) - 1] = '\0';
-            char *aliasPath = strcat(path, "\\.gigit\\config\\alias.txt");
-            FILE *aliasFile = fopen(aliasPath, "a");
-            fprintf(aliasFile, "%s %s\n", argv[user + 1], argv[user + 2]);
-            fclose(aliasFile);
+            aliasFound = true;
+            char *command = path + strlen(argv[1]) + 1;
+            system(command);
+            return 0;
         }
     }
-    else
-    {
-        char *currentPath = "C:\\Users\\Admin\\OneDrive\\Desktop\\SUT\\gigit\\gigit\\config\\currentProjectPath.txt";
-        FILE *currentProjectLink = fopen(currentPath, "r");
-        if (!currentProjectLink)
-        {
-            printf("Error opening currentProjectPath.txt\n");
-            return
-        }
+    printf("alias not found\n");
+    return 1;
 }
