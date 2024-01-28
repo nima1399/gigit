@@ -279,7 +279,6 @@ int alias(int argc, char *argv[])
 
 int aliasCheck(int argc, char *argv[])
 {
-    // complete this function to execute alias commands
     if (argc < 2)
     {
         printf("Invalid command\n");
@@ -288,12 +287,12 @@ int aliasCheck(int argc, char *argv[])
     bool aliasFound = false;
     char *aliasPath = "C:\\Users\\Admin\\OneDrive\\Desktop\\SUT\\gigit\\gigit\\config\\alias.txt";
     FILE *aliasLink = fopen(aliasPath, "r");
-    char *path = NULL;
+    char path[200];
     char *read;
     while ((read = fgets(path, 200, aliasLink)) != NULL)
     {
         path[strlen(path) - 1] = '\0';
-        if (!strcmp(argv[1], path))
+        if (!strncmp(argv[1], path, strlen(argv[1])) && path[strlen(argv[1])] == ' ')
         {
             aliasFound = true;
             char *command = path + strlen(argv[1]) + 1;
