@@ -20,6 +20,8 @@ int add(int argc, char *argv[]);
 int mkdirRecursive(char *path);
 int letterCount(char *str, char token);
 int deleteStar(char *path);
+int reset(int argc, char *argv[]);
+int status(int argc, char *argv[]);
 
 int main(int argc, char *argv[])
 {
@@ -35,13 +37,23 @@ int main(int argc, char *argv[])
     }
     else if (strcmp(argv[1], "config") == 0)
     {
-        printf("config\n");
         if (config(argc, argv))
             return 1;
     }
     else if (strcmp(argv[1], "add") == 0)
     {
         if (add(argc, argv))
+            return 1;
+    }
+    else if (strcmp(argv[1], "reset") == 0)
+    {
+        if (reset(argc, argv))
+            return 1;
+        printf("reset succesfuly\n");
+    }
+    else if (strcmp(argv[1], "status" == 0))
+    {
+        if (status(argc, argv))
             return 1;
     }
     else
@@ -372,18 +384,15 @@ int add(int argc, char *argv[])
                 strcpy(savePath, gigitpath);
                 strcat(savePath, "\\stage");
                 strcat(savePath, relativePath);
-                printf("%s\n", savePath);
                 mkdirRecursive(savePath);
                 struct dirent *entry;
                 while ((entry = readdir(dir)) != NULL)
                 {
-                    if (strcmp(entry->d_name, ".") != 0 && strcmp(entry->d_name, "..") != 0)
+                    if (strcmp(entry->d_name, ".") != 0 && strcmp(entry->d_name, "..") != 0 && strcmp(entry->d_name, ".gigit") != 0)
                     {
-                        printf("%s\n", entry->d_name);
                         deleteStar(path);
                         char *newPath = strcat(path, "\\");
                         newPath = strcat(newPath, entry->d_name);
-                        printf("%s\n", newPath);
                         add(3, (char *[]){"gigit", "add", newPath});
                     }
                 }
@@ -473,6 +482,14 @@ int add(int argc, char *argv[])
         printf("added succesfuly\n");
         return 0;
     }
+
+    if (argc > 3 && !strcmp(argv[2], "-f"))
+    {
+        for (int i = 3; i < argc; i++)
+        {
+            add(3, (char *[]){"gigit", "add", argv[i]});
+        }
+    }
 }
 
 int letterCount(char *str, char token)
@@ -510,4 +527,151 @@ int deleteStar(char *path)
         path[strlen(path) - 2] = '\0';
     }
     return 0;
+}
+
+int reset(int argc, char *argv[])
+{
+    if (argc < 3)
+    {
+        printf("Invalid command\n");
+        return 1;
+    }
+    if (argc == 3 && strcmp(argv[2], "undo") != 0)
+    {
+        struct stat s;
+        if (stat(argv[2], &s) == 0)
+        {
+            if (S_ISDIR(s.st_mode))
+            {
+                DIR *dir = opendir(argv[2]);
+                if (!dir)
+                {
+                    printf("Error: not a directory\n");
+                    return 1;
+                }
+                char *path = malloc(MAX_PATH);
+                strcpy(path, dir->dd_name);
+                closedir(dir);
+                deleteStar(path);
+                char *path2 = malloc(strlen(path) + sizeof("\\.gigit"));
+                strcpy(path2, path);
+                char *gigitpath = gigitExists(path2);
+                free(path2);
+                if (gigitpath == NULL)
+                {
+                    printf("Not a gigit repository\n");
+                    return 1;
+                }
+                char *relativePath = path + strlen(gigitpath) - strlen("\\.gigit");
+                char *savePath = malloc(strlen(gigitpath) + strlen("\\stage") + strlen(relativePath) + 1);
+                if (savePath == NULL)
+                {
+                    printf("malloc failed");
+                    return 1;
+                }
+                strcpy(savePath, gigitpath);
+                strcat(savePath, "\\stage");
+                strcat(savePath, relativePath);
+                deleteStar(savePath);
+                if (access(savePath, F_OK) != 0)
+                {
+                    printf("directory not added\n");
+                    return 1;
+                }
+                DIR *dir2 = opendir(savePath);
+                struct dirent *entry;
+                while ((entry = readdir(dir2)) != NULL)
+                {
+                    if (strcmp(entry->d_name, ".") != 0 && strcmp(entry->d_name, "..") != 0 && strcmp(entry->d_name, ".gigit") != 0)
+                    {
+                        deleteStar(path);
+                        char *newPath = strcat(path, "\\");
+                        newPath = strcat(newPath, entry->d_name);
+                        reset(3, (char *[]){"gigit", "reset", newPath});
+                    }
+                }
+                closedir(dir2);
+                rmdir(savePath);
+                free(path);
+                return 0;
+            }
+            else
+            {
+                // argv[2] is not a directory
+                // Buffer to store the full path
+                char fullPath[MAX_PATH];
+
+                // Get the full path
+                DWORD result = GetFullPathNameA(argv[2], MAX_PATH, fullPath, NULL);
+
+                if (result == 0)
+                {
+                    // Error handling
+                    perror("GetFullPathName failed");
+                    return 1;
+                }
+                char *path = malloc(strlen(fullPath));
+                strcpy(path, fullPath);
+                strrchr(path, '\\')[0] = '\0';
+                char *gigitpath = gigitExists(path);
+                if (gigitpath == NULL)
+                {
+                    printf("Not a gigit repository\n");
+                    return 1;
+                }
+                char *relativePath = path + (strlen(gigitpath) - strlen("\\.gigit"));
+                char *savePath = malloc(strlen(gigitpath) + strlen("\\stage") + strlen(relativePath) + 1);
+                if (savePath == NULL)
+                {
+                    perror("malloc failed");
+                    return 1;
+                }
+                strcpy(savePath, gigitpath);
+                strcat(savePath, "\\stage");
+                strcat(savePath, relativePath);
+                char *removeFileFromPath = strrchr(savePath, '\\');
+                removeFileFromPath[0] = '\0';
+                char *lastPath = malloc(strlen(fullPath) + strlen("\\stage") + strlen(relativePath) + 1);
+                if (lastPath == NULL)
+                {
+                    perror("malloc failed");
+                    return 1;
+                }
+                char *temp = malloc(strlen(fullPath) + 1);
+                if (temp == NULL)
+                {
+                    perror("malloc failed");
+                    return 1;
+                }
+                strcpy(temp, fullPath);
+                temp = temp + strlen(gigitpath) - strlen("\\.gigit");
+                strcpy(lastPath, savePath);
+                strcat(lastPath, temp);
+                if (access(lastPath, F_OK) != 0)
+                {
+                    printf("file not added\n");
+                    return 1;
+                }
+                remove(lastPath);
+            }
+            return 0;
+        }
+    }
+    else if (argc > 3 && !strcmp("-f", argv[2]))
+    {
+        for (int i = 3; i < argc; i++)
+        {
+            reset(3, (char *[]){"gigit", "reset", argv[i]});
+        }
+    }
+    else
+    {
+        printf("Invalid command\n");
+        return 1;
+    }
+}
+
+int status(int argc, char *argv[])
+{
+    
 }
