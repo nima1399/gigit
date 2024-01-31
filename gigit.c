@@ -7,6 +7,7 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <ftw.h>
+#include <windows.h>
 
 #define test printf("test\n");
 
@@ -18,6 +19,7 @@ int aliasCheck(int argc, char *argv[]);
 int add(int argc, char *argv[]);
 int mkdirRecursive(char *path);
 int letterCount(char *str, char token);
+int deleteStar(char *path);
 
 int main(int argc, char *argv[])
 {
@@ -42,7 +44,7 @@ int main(int argc, char *argv[])
         if (add(argc, argv))
             return 1;
     }
-    else 
+    else
     {
         if (aliasCheck(argc, argv))
             return 1;
@@ -113,12 +115,12 @@ int init()
 
 char *gigitExists(char *path)
 {
+    deleteStar(path);
     DIR *dir = opendir(path);
     if (!dir)
     {
         return NULL;
     }
-
     struct dirent *entry;
     while ((entry = readdir(dir)) != NULL)
     {
@@ -348,8 +350,12 @@ int add(int argc, char *argv[])
                     printf("Error: not a directory\n");
                     return 1;
                 }
-                char *path = dir->dd_name;
-                char *gigitpath = gigitExists(path);
+                test char *path = malloc(sizeof(MAX_PATH));
+                path = dir->dd_name;
+                char *path2 = malloc(sizeof(path) + sizeof("\\.gigit"));
+                strcpy(path2, path);
+                char *gigitpath = malloc(sizeof(MAX_PATH));
+                gigitpath = gigitExists(path2);
                 if (gigitpath == NULL)
                 {
                     printf("Not a gigit repository\n");
@@ -357,49 +363,105 @@ int add(int argc, char *argv[])
                     return 1;
                 }
                 char *relativePath = path + strlen(gigitpath) - strlen("\\.gigit");
-                char *savePath = strcat(gigitpath, "\\stage");
-                savePath = strcat(savePath, relativePath);
+                char *savePath = malloc(strlen(gigitpath) + strlen("\\stage") + strlen(relativePath) + 1);
+                if (savePath == NULL)
+                {
+                    perror("malloc failed");
+                    return 1;
+                }
+                strcpy(savePath, gigitpath);
+                strcat(savePath, "\\stage");
+                strcat(savePath, relativePath);
+                printf("%s\n", savePath);
                 mkdirRecursive(savePath);
                 struct dirent *entry;
                 while ((entry = readdir(dir)) != NULL)
                 {
                     if (strcmp(entry->d_name, ".") != 0 && strcmp(entry->d_name, "..") != 0)
                     {
+                        printf("%s\n", entry->d_name);
+                        deleteStar(path);
                         char *newPath = strcat(path, "\\");
                         newPath = strcat(newPath, entry->d_name);
-                        add(4, (char *[]){"add", argv[2], newPath});
+                        printf("%s\n", newPath);
+                        add(3, (char *[]){"gigit", "add", newPath});
                     }
                 }
-
             }
             else
             {
                 // argv[2] is not a directory
-                char *gigitpath = gigitExists(argv[2]);
+                // Buffer to store the full path
+                char fullPath[MAX_PATH];
+
+                // Get the full path
+                DWORD result = GetFullPathNameA(argv[2], MAX_PATH, fullPath, NULL);
+
+                if (result == 0)
+                {
+                    // Error handling
+                    perror("GetFullPathName failed");
+                    return 1;
+                }
+                char *path = malloc(strlen(fullPath));
+                strcpy(path, fullPath);
+                strrchr(path, '\\')[0] = '\0';
+                char *gigitpath = gigitExists(path);
                 if (gigitpath == NULL)
                 {
                     printf("Not a gigit repository\n");
                     return 1;
                 }
-                char *relativePath = argv[2] + strlen(gigitpath) - strlen("\\.gigit");
-                char *savePath = strcat(gigitpath, "\\stage");  
-                savePath = strcat(savePath, relativePath);
-                char *removeFileFromPath = strrchr(savePath, '\\');
-                removeFileFromPath[0] = '\0';
-                mkdirRecursive(savePath);
-                savePath = strcat(savePath, "\\stage");
-                savePath = strcat(savePath, relativePath);
-                if (access(savePath, F_OK) == 0)
+                test char *relativePath = path + (strlen(gigitpath) - strlen("\\.gigit"));
+                char *savePath = malloc(strlen(gigitpath) + strlen("\\stage") + strlen(relativePath) + 1);
+                if (savePath == NULL)
                 {
+                    perror("malloc failed");
                     return 1;
                 }
-                FILE *file = fopen(savePath, "w");
-                FILE *file2 = fopen(argv[2], "r");
-                char c;
-                while ((c = fgetc(file2)) != EOF)
+                strcpy(savePath, gigitpath);
+                strcat(savePath, "\\stage");
+                strcat(savePath, relativePath);
+                char *removeFileFromPath = strrchr(savePath, '\\');
+                removeFileFromPath[0] = '\0';
+                char *lastPath = malloc(strlen(fullPath) + strlen("\\stage") + strlen(relativePath) + 1);
+                if (lastPath == NULL)
                 {
-                    fputc(c, file);
+                    perror("malloc failed");
+                    return 1;
                 }
+                char *temp = malloc(strlen(fullPath) + 1);
+                if (temp == NULL)
+                {
+                    perror("malloc failed");
+                    return 1;
+                }
+                strcpy(temp, fullPath);
+                temp = temp + strlen(gigitpath) - strlen("\\.gigit");
+                strcpy(lastPath, savePath);
+                mkdirRecursive(lastPath);
+                strcat(lastPath, temp);
+                if (access(lastPath, F_OK) == 0)
+                {
+                    struct stat f;
+                    if (stat(lastPath, &f) == 0)
+                    {
+                        if (!S_ISDIR(f.st_mode))
+                        {
+                            printf("file already added\n");
+                            return 1;
+                        }
+                    }
+                }
+                FILE *file = fopen(lastPath, "w");
+                FILE *file2 = fopen(argv[2], "r");
+                char line[BUFSIZ];
+                while (fgets(line, sizeof(line), file2) != NULL)
+                {
+                    fputs(line, file);
+                }
+                fclose(file);
+                fclose(file2);
             }
         }
         else
@@ -408,6 +470,7 @@ int add(int argc, char *argv[])
             printf("directory or file doesn't exists\n");
             return 1;
         }
+        printf("added succesfuly\n");
         return 0;
     }
 }
@@ -430,11 +493,21 @@ int mkdirRecursive(char *path)
     {
         return 0;
     }
-    char *path2;
+    char *path2 = malloc(strlen(path));
     strcpy(path2, path);
     char *token = strrchr(path2, '\\');
     token[0] = '\0';
     mkdirRecursive(path2);
     mkdir(path);
+    free(path2);
+    return 0;
+}
+
+int deleteStar(char *path)
+{
+    if (path[strlen(path) - 2] == '\\' && path[strlen(path) - 1] == '*')
+    {
+        path[strlen(path) - 2] = '\0';
+    }
     return 0;
 }
