@@ -24,6 +24,7 @@ int reset(int argc, char *argv[]);
 int status(int argc, char *argv[]);
 int commit(int argc, char *argv[]);
 int depth(int argc, char *argv[], int count);
+void copyAndPaste(const char *sourcePath, const char *destinationPath);
 
 int main(int argc, char *argv[])
 {
@@ -766,9 +767,9 @@ int commit(int argc, char *argv[])
         FILE *idFile = fopen(idPath, "r");
         int id;
         char *idstr = malloc(100);
+        fscanf(idFile, "%d", &id);
         itoa(id, idstr, 10);
         idstr[strlen(idstr)] = '\0';
-        fscanf(idFile, "%d", &id);
         fclose(idFile);
         FILE *idFile2 = fopen(idPath, "w");
         fprintf(idFile2, "%d", id + 1);
@@ -840,17 +841,96 @@ int commit(int argc, char *argv[])
         fprintf(dateFile, "%s", date);
         fclose(dateFile);
 
-        char *nextCommitPath = malloc(strlen(commitPath) + strlen("\\nextCommit.txt") + 1);
-        strcpy(nextCommitPath, commitPath);
-        strcat(nextCommitPath, "\\nextCommit.txt");
-        FILE *nextCommitFile = fopen(nextCommitPath, "w");
-        fclose(nextCommitFile);
+        // char *nextCommitPath = malloc(strlen(commitPath) + strlen("\\nextCommit.txt") + 1);
+        // strcpy(nextCommitPath, commitPath);
+        // strcat(nextCommitPath, "\\nextCommit.txt");
+        // FILE *nextCommitFile = fopen(nextCommitPath, "w");
+        // fclose(nextCommitFile);
 
         char *prevCommitPath = malloc(strlen(commitPath) + strlen("\\prevCommit.txt") + 1);
         strcpy(prevCommitPath, commitPath);
         strcat(prevCommitPath, "\\prevCommit.txt");
         FILE *prevCommitFile = fopen(prevCommitPath, "w");
         fclose(prevCommitFile);
+
+        // for writing id in the commit in id.txt
+        char *commitIdPath = malloc(strlen(commitPath) + strlen("\\id.txt") + 1);
+        strcpy(commitIdPath, commitPath);
+        strcat(commitIdPath, "\\id.txt");
+        FILE *commitIdFile = fopen(commitIdPath, "w");
+        fprintf(commitIdFile, "%d", id);
+        fclose(commitIdFile);
+        if (id != 0)
+        {
+            // search in its own branch to see if there is a branch that has nextcommit file empty
+            // if there is, write the commit id in it
+            // and we assume that there is always in that branch that has next commit file empty
+            // so code it
+            char *branchPath2 = malloc(strlen(gigitpath) + strlen("\\branches\\") + strlen(branchName) + 1);
+            strcpy(branchPath2, gigitpath);
+            strcat(branchPath2, "\\branches\\");
+            strcat(branchPath2, branchName); // branch name like master
+            DIR *dir2 = opendir(branchPath2);
+            struct dirent *entry;
+            int prevId = 5;
+            while ((entry = readdir(dir2)) != NULL)
+            {
+                if (strcmp(entry->d_name, ".") != 0 && strcmp(entry->d_name, "..") != 0 && strcmp(entry->d_name, "id.txt") != 0 && strcmp(entry->d_name, "currentBranch.txt"))
+                {
+                    char *commitPath2 = malloc(strlen(branchPath2) + strlen("\\") + strlen(entry->d_name) + 1);
+                    strcpy(commitPath2, branchPath2);
+                    strcat(commitPath2, "\\");
+                    strcat(commitPath2, entry->d_name);
+                    char *nextCommitPath2 = malloc(strlen(commitPath2) + strlen("\\nextCommit.txt") + 1);
+                    strcpy(nextCommitPath2, commitPath2);
+                    strcat(nextCommitPath2, "\\nextCommit.txt");
+
+                    int commitId = atoi(entry->d_name);
+                    if (commitId == id)
+                    {
+                        continue;
+                    }
+                    if (fopen(nextCommitPath2, "r") == NULL)
+                    {
+                        char *nextCommitPath3 = malloc(strlen(commitPath2) + strlen("\\nextCommit.txt") + 1);
+                        strcpy(nextCommitPath3, commitPath2);
+                        strcat(nextCommitPath3, "\\nextCommit.txt");
+                        FILE *nextCommitFile3 = fopen(nextCommitPath3, "w");
+                        fprintf(nextCommitFile3, "%d", id);
+                        fclose(nextCommitFile3);
+                        char *prevCommitPath2 = malloc(strlen(commitPath) + strlen("\\prevCommit.txt") + 1);
+                        strcpy(prevCommitPath2, commitPath);
+                        strcat(prevCommitPath2, "\\prevCommit.txt");
+                        FILE *prevCommitFile2 = fopen(prevCommitPath2, "w");
+                        fprintf(prevCommitFile2, "%s", entry->d_name);
+                        fclose(prevCommitFile2);
+                        prevId = atoi(entry->d_name);
+                        break;
+                    }
+                }
+            }
+        }
+        // copy files from last commit to commit
+        char *commitFilesPath = malloc(strlen(commitPath) + strlen("\\files") + 1);
+        strcpy(commitFilesPath, commitPath);
+        strcat(commitFilesPath, "\\files");
+        mkdir(commitFilesPath);
+        if (id != 0)
+        {
+            char *prevCommitPath = malloc(strlen(gigitpath) + strlen("\\branches\\") + strlen(branchName) + strlen("\\") + strlen(idstr) + strlen("\\files") + 1);
+            strcpy(prevCommitPath, gigitpath);
+            strcat(prevCommitPath, "\\branches\\");
+            strcat(prevCommitPath, branchName);
+            strcat(prevCommitPath, "\\");
+            strcat(prevCommitPath, idstr);
+            strcat(prevCommitPath, "\\files");
+            copyAndPaste(prevCommitPath, commitFilesPath);
+        }
+        // copy files from staged to commit
+        char *stagedPath = malloc(strlen(gigitpath) + strlen("\\stage") + 1);
+        strcpy(stagedPath, gigitpath);
+        strcat(stagedPath, "\\stage");
+        copyAndPaste(stagedPath, commitFilesPath);
     }
 }
 
@@ -921,6 +1001,68 @@ int depth(int argc, char *argv[], int count)
                 free(path);
                 return 0;
             }
+        }
+    }
+}
+
+void copyAndPaste(const char *sourcePath, const char *destinationPath)
+{
+    struct stat s;
+    if (stat(sourcePath, &s) == 0)
+    {
+        if (S_ISDIR(s.st_mode))
+        {
+            DIR *dir = opendir(sourcePath);
+            if (!dir)
+            {
+                printf("Error: not a directory\n");
+                return;
+            }
+            struct dirent *entry;
+            while ((entry = readdir(dir)) != NULL)
+            {
+                if (strcmp(entry->d_name, ".") != 0 && strcmp(entry->d_name, "..") != 0 && strcmp(entry->d_name, ".gigit") != 0)
+                {
+                    char newPath[MAX_PATH];
+                    snprintf(newPath, sizeof(newPath), "%s\\%s", sourcePath, entry->d_name);
+
+                    char pastePath[MAX_PATH];
+                    snprintf(pastePath, sizeof(pastePath), "%s\\%s", destinationPath, entry->d_name);
+                    struct stat f;
+                    if (stat(newPath, &f) == 0)
+                    {
+                        if (S_ISDIR(f.st_mode))
+                        {
+                            mkdirRecursive(pastePath);
+                        }
+                    }
+                    copyAndPaste(newPath, pastePath);
+                }
+            }
+            closedir(dir);
+        }
+        else
+        {
+            char line[BUFSIZ];
+            FILE *file = fopen(sourcePath, "r");
+            if (!file)
+            {
+                printf("Error: unable to open source file\n");
+                return;
+            }
+            FILE *pasteFile = fopen(destinationPath, "w");
+            if (!pasteFile)
+            {
+                printf("Error: unable to open destination file\n");
+                fclose(file);
+                return;
+            }
+            while (fgets(line, sizeof(line), file) != NULL)
+            {
+                fputs(line, pasteFile);
+            }
+            fclose(file);
+            fclose(pasteFile);
         }
     }
 }
