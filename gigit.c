@@ -1300,6 +1300,8 @@ int checkout(int argc, char *argv[])
             }
         }
     }
+    if (!strcmp(argv[2], "head"))
+        branchExists = true;
     if (branchExists == false && idExists == false)
     {
         printf("branch doesn't exists\n");
@@ -1317,5 +1319,60 @@ int checkout(int argc, char *argv[])
     char *currentproject = malloc(strlen(gigitpath));
     strcpy(currentproject, gigitpath);
     strrchr(currentproject, '\\')[0] = '\0';
-    
+
+    // delete the things inside currentproject path
+    struct dirent *entry3;
+    DIR *dir3 = opendir(currentproject);
+    while ((entry3 = readdir(dir3)) != NULL)
+    {
+        if (strcmp(entry3->d_name, ".") != 0 && strcmp(entry3->d_name, "..") != 0 && strcmp(entry3->d_name, ".gigit") != 0)
+        {
+            char *deletePath = malloc(strlen(currentproject) + strlen("\\") + strlen(entry3->d_name) + 1);
+            strcpy(deletePath, currentproject);
+            strcat(deletePath, "\\");
+            strcat(deletePath, entry3->d_name);
+            // remove using windows cmd
+            char *cmd = malloc(strlen(deletePath) + strlen("del /s /q") + strlen(" > nul") + 1);
+            strcpy(cmd, "del /s /q ");
+            strcat(cmd, deletePath);
+            strcat(cmd, " > nul");
+            system(cmd);
+        }
+    }
+
+    // copy the files from the last commit of branch to the directory
+    // last id doesnt have nextCommit.txt
+    // char *lastCommitIdPath = malloc(strlen(branchesPath) + strlen("\\") + strlen(currentBranch) + 1);
+    // strcpy(lastCommitIdPath, branchesPath);
+    // strcat(lastCommitIdPath, "\\");
+    // strcat(lastCommitIdPath, currentBranch);
+    // struct dirent *entry4;
+    // DIR *dir4 = opendir(lastCommitIdPath);
+    // while ((entry4 = readdir(dir4)) != NULL)
+    // {
+    //     if (strcmp(entry4->d_name, ".") != 0 && strcmp(entry4->d_name, "..") != 0 && strcmp(entry4->d_name, "id.txt") != 0)
+    //     {
+    //         char *commitPath = malloc(strlen(lastCommitIdPath) + strlen("\\") + strlen(entry4->d_name) + 1);
+    //         strcpy(commitPath, lastCommitIdPath);
+    //         strcat(commitPath, "\\");
+    //         strcat(commitPath, entry4->d_name);
+    //         char *commitFilesPath = malloc(strlen(commitPath) + strlen("\\nextCommit.txt") + 1);
+    //         strcpy(commitFilesPath, commitPath);
+    //         strcat(commitFilesPath, "\\nextCommit.txt");
+    //         if (fopen(commitFilesPath, "r") != NULL)
+    //         {
+    //             continue;
+    //         }
+    //         char *cmd = malloc(strlen(commitPath) + strlen("xcopy  /s /e") + strlen(currentproject) + strlen(" > nul") + 1);
+    //         strcpy(cmd, "xcopy ");
+    //         strcat(cmd, commitPath);
+    //         strcat(cmd, " ");
+    //         strcat(cmd, currentproject);
+    //         strcat(cmd, " /s /e");
+    //         system(cmd);
+
+    //     }
+    // }
+
+
 }
