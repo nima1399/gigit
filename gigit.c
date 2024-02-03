@@ -26,6 +26,7 @@ int commit(int argc, char *argv[]);
 int depth(int argc, char *argv[], int count);
 int branch(int argc, char *argv[]);
 int checkout(int argc, char *argv[]);
+int log(int argc, char *argv[]);
 
 int main(int argc, char *argv[])
 {
@@ -70,6 +71,16 @@ int main(int argc, char *argv[])
     else if (strcmp(argv[1], "branch") == 0)
     {
         if (branch(argc, argv))
+            return 1;
+    }
+    else if (strcmp(argv[1], "checkout") == 0)
+    {
+        if (checkout(argc, argv))
+            return 1;
+    }
+    else if (strcmp(argv[1], "log") == 0)
+    {
+        if (log(argc, argv))
             return 1;
     }
     else
@@ -1300,7 +1311,7 @@ int checkout(int argc, char *argv[])
             }
         }
     }
-    if (!strcmp(argv[2], "head"))
+    if (!strcmp(argv[2], "HEAD"))
         branchExists = true;
     if (branchExists == false && idExists == false)
     {
@@ -1337,42 +1348,231 @@ int checkout(int argc, char *argv[])
             strcat(cmd, deletePath);
             strcat(cmd, " > nul");
             system(cmd);
+
+            // remove using rmdir
+            char *cmd2 = malloc(strlen(deletePath) + strlen("rmdir /s /q") + strlen(" > nul") + 1);
+            strcpy(cmd2, "rmdir /s /q ");
+            strcat(cmd2, deletePath);
+            strcat(cmd2, " > nul");
+            system(cmd2);
         }
     }
 
     // copy the files from the last commit of branch to the directory
     // last id doesnt have nextCommit.txt
-    // char *lastCommitIdPath = malloc(strlen(branchesPath) + strlen("\\") + strlen(currentBranch) + 1);
-    // strcpy(lastCommitIdPath, branchesPath);
-    // strcat(lastCommitIdPath, "\\");
-    // strcat(lastCommitIdPath, currentBranch);
-    // struct dirent *entry4;
-    // DIR *dir4 = opendir(lastCommitIdPath);
-    // while ((entry4 = readdir(dir4)) != NULL)
-    // {
-    //     if (strcmp(entry4->d_name, ".") != 0 && strcmp(entry4->d_name, "..") != 0 && strcmp(entry4->d_name, "id.txt") != 0)
-    //     {
-    //         char *commitPath = malloc(strlen(lastCommitIdPath) + strlen("\\") + strlen(entry4->d_name) + 1);
-    //         strcpy(commitPath, lastCommitIdPath);
-    //         strcat(commitPath, "\\");
-    //         strcat(commitPath, entry4->d_name);
-    //         char *commitFilesPath = malloc(strlen(commitPath) + strlen("\\nextCommit.txt") + 1);
-    //         strcpy(commitFilesPath, commitPath);
-    //         strcat(commitFilesPath, "\\nextCommit.txt");
-    //         if (fopen(commitFilesPath, "r") != NULL)
-    //         {
-    //             continue;
-    //         }
-    //         char *cmd = malloc(strlen(commitPath) + strlen("xcopy  /s /e") + strlen(currentproject) + strlen(" > nul") + 1);
-    //         strcpy(cmd, "xcopy ");
-    //         strcat(cmd, commitPath);
-    //         strcat(cmd, " ");
-    //         strcat(cmd, currentproject);
-    //         strcat(cmd, " /s /e");
-    //         system(cmd);
+    char *lastCommitIdPath = malloc(strlen(branchesPath) + strlen("\\") + strlen(currentBranch) + 1);
+    strcpy(lastCommitIdPath, branchesPath);
+    strcat(lastCommitIdPath, "\\");
+    strcat(lastCommitIdPath, currentBranch);
+    struct dirent *entry4;
+    DIR *dir4 = opendir(lastCommitIdPath);
+    while ((entry4 = readdir(dir4)) != NULL)
+    {
+        if (strcmp(entry4->d_name, ".") != 0 && strcmp(entry4->d_name, "..") != 0 && strcmp(entry4->d_name, "id.txt") != 0)
+        {
+            char *commitPath = malloc(strlen(lastCommitIdPath) + strlen("\\") + strlen(entry4->d_name) + 1);
+            strcpy(commitPath, lastCommitIdPath);
+            strcat(commitPath, "\\");
+            strcat(commitPath, entry4->d_name);
+            char *commitFilesPath = malloc(strlen(commitPath) + strlen("\\nextCommit.txt") + 1);
+            strcpy(commitFilesPath, commitPath);
+            strcat(commitFilesPath, "\\nextCommit.txt");
+            if (fopen(commitFilesPath, "r") != NULL)
+            {
+                continue;
+            }
+            char *cmd = malloc(strlen(commitPath) + strlen("xcopy  /s /e") + strlen(currentproject) + strlen(" > nul") + 1);
+            strcpy(cmd, "xcopy ");
+            strcat(cmd, commitPath);
+            strcat(cmd, " ");
+            strcat(cmd, currentproject);
+            strcat(cmd, " /s /e");
+            system(cmd);
+        }
+    }
+}
 
-    //     }
-    // }
+int log(int argc, char *argv[])
+{
+    if (argc == 2)
+    {
+        DIR *dir = opendir(".");
+        if (!dir)
+        {
+            printf("Error: not a directory\n");
+            return 1;
+        }
+        char *path = malloc(MAX_PATH);
+        strcpy(path, dir->dd_name);
+        deleteStar(path);
+        char *path2 = malloc(strlen(path) + sizeof("\\.gigit"));
+        strcpy(path2, path);
+        char *gigitpath = gigitExists(path2);
+        if (gigitpath == NULL)
+        {
+            printf("Not a gigit repository\n");
+            return 1;
+        }
+        char *idPath = malloc(strlen(gigitpath) + strlen("\\branches\\id.txt") + 1);
+        strcpy(idPath, gigitpath);
+        strcat(idPath, "\\branches\\id.txt");
+        FILE *idFile = fopen(idPath, "r");
+        int id;
+        fscanf(idFile, "%d", &id);
+        fclose(idFile);
+        for (int i = id - 1; i >= 0; i--)
+        {
+            logID(i)
+        }
+    }
+    // now we check log -n where n is a number
+    else if (argc == 4 && !strcmp(argv[2], "-n"))
+    {
+        int n = atoi(argv[3]);
+        DIR *dir = opendir(".");
+        if (!dir)
+        {
+            printf("Error: not a directory\n");
+            return 1;
+        }
+        char *path = malloc(MAX_PATH);
+        strcpy(path, dir->dd_name);
+        deleteStar(path);
+        char *path2 = malloc(strlen(path) + sizeof("\\.gigit"));
+        strcpy(path2, path);
+        char *gigitpath = gigitExists(path2);
+        if (gigitpath == NULL)
+        {
+            printf("Not a gigit repository\n");
+            return 1;
+        }
+        char *idPath = malloc(strlen(gigitpath) + strlen("\\branches\\id.txt") + 1);
+        strcpy(idPath, gigitpath);
+        strcat(idPath, "\\branches\\id.txt");
+        FILE *idFile = fopen(idPath, "r");
+        int id;
+        fscanf(idFile, "%d", &id);
+        fclose(idFile);
+        for (int i = id - 1; i >= id - n; i--)
+        {
+            logID(i)
+        }
+    }
+    else if (argc == 4 && !strcmp(argv[2], "-branch"))
+    {
+        
+    }
+}
 
+int logId(int ID)
+{
+    DIR *dir = opendir(".");
+    if (!dir)
+    {
+        printf("Error: not a directory\n");
+        return 1;
+    }
+    char *path = malloc(MAX_PATH);
+    strcpy(path, dir->dd_name);
+    deleteStar(path);
+    char *path2 = malloc(strlen(path) + sizeof("\\.gigit"));
+    strcpy(path2, path);
+    char *gigitpath = gigitExists(path2);
+    if (gigitpath == NULL)
+    {
+        printf("Not a gigit repository\n");
+        return 1;
+    }
+    char *branchesPath = malloc(strlen(gigitpath) + strlen("\\branches") + 1);
+    strcpy(branchesPath, gigitpath);
+    strcat(branchesPath, "\\branches");
+    struct dirent *entry;
+    DIR *gigitDir = opendir(branchesPath);
+    while ((entry = readdir(gigitDir)) != NULL)
+    {
+        if (strcmp(entry->d_name, ".") != 0 && strcmp(entry->d_name, "..") != 0 && strcmp(entry->d_name, "currentBranch.txt") != 0 && strcmp(entry->d_name, "id.txt") != 0 && strcmp(entry->d_name, "lastbranch.txt") != 0)
+        {
+            struct dirent *entry2;
+            char *branchPath2 = malloc(strlen(branchesPath) + strlen("\\") + strlen(entry->d_name) + 1);
+            strcpy(branchPath2, branchesPath);
+            strcat(branchPath2, "\\");
+            strcat(branchPath2, entry->d_name); // branchesPath\\entry->d_name
+            DIR *branchDir = opendir(branchPath2);
+            while ((entry2 = readdir(branchDir)) != NULL)
+            {
+                if (strcmp(entry2->d_name, ".") != 0 && strcmp(entry2->d_name, "..") != 0 && strcmp(entry2->d_name, "id.txt") != 0)
+                {
+                    if (atoi(entry2->d_name) == ID)
+                    {
+                        // check fake.txt to see its fake or not
+                        bool fake = false;
+                        char *fakePath = malloc(strlen(branchPath2) + strlen("\\") + strlen(entry2->d_name) + strlen("\\fake.txt") + 1);
+                        strcpy(fakePath, branchPath2);
+                        strcat(fakePath, "\\");
+                        strcat(fakePath, entry2->d_name);
+                        strcat(fakePath, "\\fake.txt");
+                        if (fopen(fakePath, "r") != NULL)
+                        {
+                            fake = true;
+                        }
+                        if (fake == true)
+                        {
+                            continue;
+                        }
+                        char *commitPath = malloc(strlen(branchPath2) + strlen("\\") + strlen(entry2->d_name) + 1);
+                        strcpy(commitPath, branchPath2);
+                        strcat(commitPath, "\\");
+                        strcat(commitPath, entry2->d_name);
 
+                        // printing date of commit
+                        char *datePath = malloc(strlen(commitPath) + strlen("\\date.txt") + 1);
+                        strcpy(datePath, commitPath);
+                        strcat(datePath, "\\date.txt");
+                        FILE *dateFile = fopen(datePath, "r");
+                        char date[100];
+                        fgets(date, 100, dateFile);
+                        date[strlen(date)] = '\0';
+                        fclose(dateFile);
+                        printf("Commit Date: %s\n", i, date);
+
+                        // printing message of commit
+                        char *messagePath = malloc(strlen(commitPath) + strlen("\\message.txt") + 1);
+                        strcpy(messagePath, commitPath);
+                        strcat(messagePath, "\\message.txt");
+                        FILE *messageFile = fopen(messagePath, "r");
+                        char message[100];
+                        fgets(message, 100, messageFile);
+                        message[strlen(message)] = '\0';
+                        fclose(messageFile);
+                        printf("Commit Message: %s\n", message);
+
+                        // printing username of commit
+                        char *usernamePath = malloc(strlen(commitPath) + strlen("\\username.txt") + 1);
+                        strcpy(usernamePath, commitPath);
+                        strcat(usernamePath, "\\username.txt");
+                        FILE *usernameFile = fopen(usernamePath, "r");
+                        char username[100];
+                        fgets(username, 100, usernameFile);
+                        username[strlen(username)] = '\0';
+                        fclose(usernameFile);
+                        printf("Username: %s\n", username);
+
+                        printf("Commit ID: %d\n", i);
+
+                        // printing branch of commit
+                        printf("Commit Branch: %s\n", entry->d_name);
+
+                        // printing how many files are in commit
+                        char *filesPath = malloc(strlen(commitPath) + strlen("\\files") + 1);
+                        strcpy(filesPath, commitPath);
+                        strcat(filesPath, "\\files");
+                        char command[256];
+                        sprintf(command, "cmd /c \"cd /d %s && (dir /a-d /b ^| find /c /v \"\"\")\"", filesPath);
+                        int count = system(command);
+                        printf("Number of files: %d\n", count);
+                    }
+                }
+            }
+        }
+    }
 }
