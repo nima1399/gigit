@@ -34,6 +34,7 @@ int grep(int argc, char *argv[]);
 char *fileFinding(char *path, char *filename);
 int preCommit(int argc, char *argv[]);
 int diff(int argc, char *argv[]);
+int revert(int argc, char *argv[]);
 
 int main(int argc, char *argv[])
 {
@@ -108,6 +109,11 @@ int main(int argc, char *argv[])
     else if (strcmp(argv[1], "diff") == 0)
     {
         if (diff(argc, argv))
+            return 1;
+    }
+    else if (strcmp(argv[1], "revert") == 0)
+    {
+        if (revert(argc, argv))
             return 1;
     }
     else
@@ -768,7 +774,7 @@ int commit(int argc, char *argv[])
         return 1;
     }
     // commit like git commit -m "message"
-    else if (argc == 4 && !strcmp(argv[2], "-m"))
+    else if ((argc == 6 && !strcmp(argv[2], "-m") && !strcmp(argv[4], "-h")) || (argc == 4 && !strcmp(argv[2], "-m")))
     {
         DIR *dir = opendir(".");
         if (!dir)
@@ -948,7 +954,11 @@ int commit(int argc, char *argv[])
                 }
             }
         }
-        // copy files from last commit to commit
+
+        if (argc == 6 && argv[4] == "-h")
+        {
+            prevId = atoi(argv[5]);
+        }
         char *commitFilesPath = malloc(strlen(commitPath) + strlen("\\files") + 1);
         strcpy(commitFilesPath, commitPath);
         strcat(commitFilesPath, "\\files");
@@ -1391,10 +1401,11 @@ int checkout(int argc, char *argv[])
     {
         if (strcmp(entry4->d_name, ".") != 0 && strcmp(entry4->d_name, "..") != 0 && strcmp(entry4->d_name, "id.txt") != 0)
         {
-            char *commitPath = malloc(strlen(lastCommitIdPath) + strlen("\\") + strlen(entry4->d_name) + 1);
+            char *commitPath = malloc(strlen(lastCommitIdPath) + strlen("\\") + strlen(entry4->d_name) + strlen("\\files") + 1);
             strcpy(commitPath, lastCommitIdPath);
             strcat(commitPath, "\\");
             strcat(commitPath, entry4->d_name);
+            strcat(commitPath, "\\files");
             char *commitFilesPath = malloc(strlen(commitPath) + strlen("\\nextCommit.txt") + 1);
             strcpy(commitFilesPath, commitPath);
             strcat(commitFilesPath, "\\nextCommit.txt");
@@ -2687,4 +2698,137 @@ int diff(int argc, char *argv[])
     }
 
     return 0;
+}
+
+int revert(int argc, char *argv[])
+{
+    if (!strcmp(argv[2], "-n"))
+    {
+        if (argc == 4)
+        {
+            int ID = atoi(argv[3]);
+            char *cmd = malloc(strlen("gigit checkout ") + strlen(argv[3]) + 1);
+            strcpy(cmd, "gigit checkout ");
+            strcat(cmd, argv[3]);
+            system(cmd);
+        }
+        else
+        {
+            char *cmd = malloc(strlen("gigit checkout ") + strlen("HEAD") + 1);
+            strcpy(cmd, "gigit checkout ");
+            strcat(cmd, "HEAD");
+            system(cmd);
+        }
+    }
+    else if (argc == 5 || argc == 3)
+    {
+        int n = 5;
+        if (argc == 3)
+        {
+            n = 3;
+        }
+        if (strncmp(argv[n - 1], "HEAD-", 5))
+        {
+            char *message = malloc(100);
+            if (n == 5)
+            {
+                strcpy(message, argv[3]);
+                int ID = atoi(argv[4]);
+                char *cmd = malloc(strlen("gigit checkout ") + 3);
+                strcpy(cmd, "gigit checkout ");
+                strcat(cmd, argv[4]);
+                system(cmd);
+                char *cmd2 = malloc(strlen("neogit commit -m " + strlen(message)) + strlen(" -h ") + strlen(argv[4]) + 1);
+                strcpy(cmd2, "neogit commit -m ");
+                strcat(cmd2, message);
+                strcat(cmd2, " -h ");
+                strcat(cmd2, argv[4]);
+                system(cmd2);
+            }
+            else
+            {
+                // get message from id
+                int ID = atoi(argv[2]);
+                DIR *dir = opendir(".");
+                if (!dir)
+                {
+                    printf("Error: not a directory\n");
+                    return 1;
+                }
+                char *path = malloc(MAX_PATH);
+                strcpy(path, dir->dd_name);
+                deleteStar(path);
+                char *path2 = malloc(strlen(path) + sizeof("\\.gigit") + 1);
+                strcpy(path2, path);
+                char *gigitpath = gigitExists(path2);
+                if (gigitpath == NULL)
+                {
+                    printf("Not a gigit repository\n");
+                    return 1;
+                }
+                char *branchesPath = malloc(strlen(gigitpath) + strlen("\\branches") + 1);
+                strcpy(branchesPath, gigitpath);
+                strcat(branchesPath, "\\branches");
+                struct dirent *entry;
+                DIR *dir2 = opendir(branchesPath);
+                while ((entry = readdir(dir2)) != NULL)
+                {
+                    if (strcmp(entry->d_name, ".") != 0 && strcmp(entry->d_name, "..") != 0)
+                    {
+                        char *branchPath = malloc(strlen(branchesPath) + strlen("\\") + strlen(entry->d_name) + 1);
+                        strcpy(branchPath, branchesPath);
+                        strcat(branchPath, "\\");
+                        strcat(branchPath, entry->d_name);
+                        DIR *dir3 = opendir(branchPath);
+                        struct dirent *entry2;
+                        while ((entry2 = readdir(dir3)) != NULL)
+                        {
+                            if (strcmp(entry2->d_name, ".") != 0 && strcmp(entry2->d_name, "..") != 0)
+                            {
+                                char *commitPath = malloc(strlen(branchPath) + strlen("\\") + strlen(entry2->d_name) + 1);
+                                strcpy(commitPath, branchPath);
+                                strcat(commitPath, "\\");
+                                strcat(commitPath, entry2->d_name);
+                                char *IDstr = malloc(100);
+                                itoa(ID, IDstr, 10);
+                                if (!strcmp(entry2->d_name, IDstr))
+                                {
+                                    char *messagePath = malloc(strlen(commitPath) + strlen("\\message.txt") + 1);
+                                    strcpy(messagePath, commitPath);
+                                    strcat(messagePath, "\\message.txt");
+                                    FILE *messageFile = fopen(messagePath, "r");
+                                    char message[100];
+                                    fgets(message, 100, messageFile);
+                                    message[strlen(message)] = '\0';
+                                    fclose(messageFile);
+                                    char *cmd = malloc(strlen("gigit checkout ") + strlen(IDstr) + 1);
+                                    strcpy(cmd, "gigit checkout ");
+                                    strcat(cmd, IDstr);
+                                    system(cmd);
+                                    char *cmd2 = malloc(strlen("neogit commit -m " + strlen(message)) + strlen(" -h ") + strlen(IDstr) + 1);
+                                    strcpy(cmd2, "neogit commit -m ");
+                                    strcat(cmd2, message);
+                                    strcat(cmd2, " -h ");
+                                    strcat(cmd2, IDstr);
+                                    system(cmd2);
+                                    return 0;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        else
+        {
+            printf("Invalid Input\n");
+            return 1;
+        }
+    }
+    else
+    {
+        printf("Invalid Input\n");
+        return 1;
+    }
 }
